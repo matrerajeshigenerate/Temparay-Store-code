@@ -1,0 +1,413 @@
+Invoice controller 
+
+import { invoiceService } from '../services';
+
+const createInvoice = async (req, res) => {
+	try {
+		const {
+			invoiceNumber,
+			invoiceDate,
+			brandId,
+			storeId,
+			subscriptionId,
+			customerEmail,
+			discountPercentage,
+			amount,
+			taxPercentage,
+		} = req.body;
+
+		if (
+			(!brandId ||
+				!storeId ||
+				!customerEmail ||
+				!subscriptionId ||
+				!discountPercentage,
+				!taxPercentage)
+		) {
+			return res.status(400).json({
+				success: false,
+				message: 'Required fields are missing',
+			});
+		}
+
+		const result = await invoiceService.createInvoice({
+			invoiceNumber,
+			invoiceDate,
+			brandId,
+			storeId,
+			subscriptionId,
+			discountPercentage,
+			amount,
+			taxPercentage,
+			customerEmail,
+		});
+
+		res.status(201).json({
+			success: result.success,
+			message: result.message,
+		});
+	} catch (error) {
+		console.error('Error creating invoice:', error);
+
+		if (
+			error.message ===
+			'Subscription details are missing. Please provide either a subscriptionId or subscriptionType, amount, and tax.'
+		) {
+			return res.status(400).json({
+				success: false,
+				message: error.message,
+			});
+		}
+
+		res.status(500).json({
+			success: false,
+			message: 'Failed to create invoice',
+		});
+	}
+};
+
+const getInvoice = async (req, res) => {
+	try {
+		let { query } = req;
+		let data = await invoiceService.findAllInvoice(query);
+
+		if (!data) throw new Error('No Invoice found');
+
+		res.status(200).send({
+			success: true,
+			data: data.invoiceData,
+		});
+	} catch (error) {
+		console.error('Error in getInvoice:', error.message);
+		res.status(400).send({
+			success: false,
+			message: error.message || error,
+		});
+	}
+};
+
+export default {
+	createInvoice,
+	getInvoice,
+};
+________________________________________________________________________________________________________________________model 
+
+import mongoose from 'mongoose';
+
+const sahlSubscriptionInvoiceSchema = new mongoose.Schema(
+	{
+		invoiceNumber: { type: String, required: true, unique: true },
+		invoiceDate: { type: Date, required: true },
+		brandId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Brand',
+			required: true,
+		},
+		storeId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Store',
+			required: true,
+		},
+		subscriptionId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'sahlSubscription',
+		},
+		discountPercentage: { type: Number, default: 0 },
+		customerEmail: { type: String, required: true },
+		subtotal: { type: Number, required: true },
+		taxPercentage: { type: Number, required: true },
+		grandTotal: { type: Number, required: true },
+		isActive: { type: Boolean, default: true },
+		isDeleted: { type: Boolean, default: false },
+	},
+	{ timestamps: true },
+);
+
+const sahlSubscriptionInvoice = mongoose.model(
+	'sahlSubscriptionInvoice',
+	sahlSubscriptionInvoiceSchema,
+);
+
+export default sahlSubscriptionInvoice;
+
+______________________________________________________________________________________________services
+
+
+import { invoiceModel , brandModel , storeModel  } from '../models';
+
+import nodemailer from 'nodemailer';
+import { v4 as uuidv4 } from 'uuid';
+
+const generateInvoiceNumber = () => {
+	return `INV-${uuidv4()}`;
+};
+
+export const createInvoice = async (invoiceData) => {
+	const {
+		brandId,
+		storeId,
+		subscriptionId,
+		amount,
+		discountPercentage,
+		taxPercentage,
+		customerEmail,
+	} = invoiceData;
+
+	try {
+		const invoiceNumber = generateInvoiceNumber();
+		const invoiceDate = new Date();
+
+		console.log('invoiceNumber :>> ', invoiceNumber);
+		console.log('invoiceDate :>> ', invoiceDate);
+
+		const brand = await brandModel.findOne({ _id: brandId }, 'name');
+		if (!brand) throw new Error('Brand not found');
+		const brandName = brand.name;
+
+		const store = await storeModel.findOne({ _id: storeId },'name address');
+		if (!store) throw new Error('Store not found');
+		const storeDetails = {
+			name: store.name,
+			address: store.address,
+		};
+
+		// let subscriptionDetails = {};
+		// let amount, taxPercentage, grandTotal;
+
+		
+		// const subscription = await Subscription.findById(subscriptionId);
+		// if (!subscription) {
+		//   return res.status(404).json({ message: 'Subscription not found' });
+		// }
+	
+
+		const discountedPrice = amount * (1 - discountPercentage / 100);
+		console.log("🚀 ~ createInvoice ~ discountedPrice:", discountedPrice)
+		const taxAmount = discountedPrice * (taxPercentage / 100);
+		console.log("🚀 ~ createInvoice ~ taxAmount:", taxAmount)
+		const grandTotal = discountedPrice + taxAmount;
+		console.log("🚀 ~ createInvoice ~ grandTotal:", grandTotal)
+
+		
+		const newInvoice = new invoiceModel({
+			invoiceNumber,
+			invoiceDate,
+			brandId,
+			storeId,
+			subscriptionId: subscriptionId || null,
+			customerEmail,
+			subtotal,
+			tax: taxAmount,
+			grandTotal,
+		});
+
+		// await newInvoice.save();
+
+		const sendInvoice = {
+			invoiceNumber,
+			invoiceDate,
+			brandName,
+			storeDetails,
+			subscriptionDetails,
+			subtotal,
+			tax: taxAmount,
+			grandTotal,
+		};
+
+		const htmlContent = generateInvoiceHTML(sendInvoice);
+		await MailService(customerEmail, 'Invoice', htmlContent);
+
+		return {
+			success: true,
+			message: 'Invoice created and email sent successfully.',
+		};
+	} catch (error) {
+		console.error('Error in createInvoice service:', error);
+		throw error;
+	}
+};
+
+const generateInvoiceHTML = (invoiceData) => {
+	const {
+		invoiceNumber,
+		invoiceDate,
+		brandName,
+		storeDetails,
+		subscriptionDetails,
+		subtotal,
+		tax,
+		grandTotal,
+	} = invoiceData;
+
+	return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background-color: #f8f9fa;
+                margin: 0;
+                padding: 20px;
+                color: #343a40;
+            }
+            .container {
+                max-width: 700px;
+                background-color: #ffffff;
+                padding: 30px;
+                margin: auto;
+                border-radius: 8px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .header h1 {
+                margin: 0;
+                color: #007bff;
+                font-size: 28px;
+                font-weight: bold;
+            }
+            .invoice-details {
+                margin-bottom: 30px;
+            }
+            .invoice-details h2 {
+                font-size: 22px;
+                margin-bottom: 20px;
+                color: #6c757d;
+            }
+            .invoice-details p {
+                margin: 5px 0;
+                font-size: 16px;
+            }
+            .details-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+            }
+            .details-table th, .details-table td {
+                padding: 12px;
+                border: 1px solid #dee2e6;
+                text-align: left;
+                font-size: 16px;
+            }
+            .details-table th {
+                background-color: #f8f9fa;
+                color: #495057;
+                font-weight: bold;
+            }
+            .footer {
+                text-align: center;
+                font-size: 14px;
+                color: #6c757d;
+                margin-top: 30px;
+                border-top: 1px solid #dee2e6;
+                padding-top: 20px;
+            }
+            .footer p {
+                margin: 5px 0;
+            }
+            .footer a {
+                color: #007bff;
+                text-decoration: none;
+            }
+            .footer a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Invoice</h1>
+            </div>
+            <div class="invoice-details">
+                <h2>Invoice Details</h2>
+                <p><strong>Invoice Number:</strong> ${invoiceNumber}</p>
+                <p><strong>Invoice Date:</strong> ${invoiceDate.toDateString()}</p>
+                <p><strong>Brand:</strong> ${brandName}</p>
+                <p><strong>Store Name:</strong> ${storeDetails.name}</p>
+                <p><strong>Store Address:</strong> ${storeDetails.address}</p>
+            </div>
+            <div class="details-table">
+                <table>
+                    <tr>
+                        <th>Description</th>
+                        <th>Amount</th>
+                    </tr>
+                    <tr>
+                        <td>Subscription (${subscriptionDetails.type})</td>
+                        <td>${subscriptionDetails.amount.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Subtotal</td>
+                        <td>${subtotal.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Tax (5%)</td>
+                        <td>${tax.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Grand Total</strong></td>
+                        <td><strong>${grandTotal.toFixed(2)}</strong></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="footer">
+                <p>Thank you for your business!</p>
+                <p>If you have any questions, please contact us at <a href="mailto:support@yourcompany.com">support@yourcompany.com</a>.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+};
+
+const MailService = async (emailTo, emailSubject, htmlContent) => {
+	const transporter = nodemailer.createTransport({
+		service: 'gmail',
+		host: 'smtp.gmail.com',
+		auth: {
+			user: 'matrerajesh.igenerate@gmail.com',
+			pass: 'qaiuijegovdkwguc',
+		},
+	});
+
+	const info = await transporter.sendMail({
+		from: 'IGENERATE TECHNOLOGY PRIVATE LIMITED',
+		to: emailTo,
+		subject: emailSubject,
+		html: htmlContent,
+	});
+};
+
+export const findAllInvoice = async (query) => {
+	try {
+		let { _id } = query;
+
+		if (_id) {
+			const invoice = await invoiceModel.findOne({ _id });
+			if (!invoice) throw new Error('Invoice not found');
+
+			return {
+				invoiceData: [invoice],
+			};
+		} else {
+			const invoices = await invoiceModel.find({});
+			return {
+				invoiceData: invoices,
+			};
+		}
+	} catch (error) {
+		console.error('Error in findAllInvoice service:', error.message);
+		throw error;
+	}
+};
+
+export default {
+	createInvoice,
+	findAllInvoice,
+};
