@@ -1,0 +1,456 @@
+invoice.services.js +_________________________________________________________________________
+
+
+import {
+	invoiceModel,
+	brandModel,
+	storeModel,
+	sahlSubscriptionModel,
+	smtpDetailsModel,
+} from '../models';
+
+import nodemailer from 'nodemailer';
+import numberToWords from 'number-to-words';
+import puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
+
+
+const generateInvoiceNumber = () => {
+	const randomNumber = Math.floor(1000000000 + Math.random() * 9000000000);
+	return `INV${randomNumber}`;
+};
+
+const formatGrandTotalInWords = (formattedGrandTotal) => {
+	const AED = 'AED only';
+	const [integerPart, decimalPart] = formattedGrandTotal.split('.');
+	const integerInWords = numberToWords.toWords(integerPart);
+	const decimalInWords = numberToWords.toWords(decimalPart);
+
+	return `${integerInWords} and ${decimalInWords} ${AED}`;
+};
+
+export const createInvoice = async (invoiceData) => {
+	const {
+		brandId,
+		storeId,
+		subscriptionId,
+		discountPercentage,
+		taxPercentage,
+		customerEmail,
+	} = invoiceData;
+
+	try {
+		const invoiceNumber = generateInvoiceNumber();
+		const invoiceDate = new Date();
+		const formattedInvoiceDate = invoiceDate.toLocaleDateString('en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric',
+		});
+
+		const brand = await brandModel.findOne({ _id: brandId }, 'name');
+		if (!brand) throw new Error('Brand not found');
+		const brandName = brand.name;
+
+		const store = await storeModel.findOne({ _id: storeId }, 'name address');
+		if (!store) throw new Error('Store not found');
+		const storeDetails = {
+			name: store.name,
+			address: store.address,
+		};
+
+		const sahlSubscription = await sahlSubscriptionModel.findOne({
+			_id: subscriptionId,
+		});
+		const { planName, billingCycle, currency, amount } = sahlSubscription;
+
+		const subscriptionDetails = {
+			planName,
+			billingCycle,
+			currency,
+			amount,
+		};
+
+		const discountedPrice = amount * (1 - discountPercentage / 100);
+		const taxAmount = amount * (taxPercentage / 100);
+		const grandTotal = discountedPrice + taxAmount;
+
+		const formattedDiscountedPrice = discountedPrice.toFixed(2);
+		const formattedTaxAmount = taxAmount.toFixed(2);
+		const formattedGrandTotal = grandTotal.toFixed(2);
+
+		const invoiceData = {
+			invoiceNumber,
+			formattedInvoiceDate,
+			brandName,
+			storeDetails,
+			subscriptionDetails,
+			currency,
+			discountedPrice: formattedDiscountedPrice,
+			taxPercentage,
+			taxAmount: formattedTaxAmount,
+			grandTotal: formattedGrandTotal,
+			subTotalInWords: formatGrandTotalInWords(formattedGrandTotal),
+		};
+
+		const newInvoice = new invoiceModel(invoiceData);
+
+		// await newInvoice.save();
+
+		const htmlContent = generateInvoiceHTML(invoiceData);
+		const pdfPath = await generatePDF(htmlContent, invoiceNumber);
+
+		const subject = `Invoice ${invoiceNumber}`;
+		const plainTextMessage = `
+Dear sir,
+
+I hope you are well.
+
+Please see attached the invoice ${invoiceNumber}.
+
+Please don't hesitate to get in touch if you have any questions or need clarifications.
+
+		`;
+
+		await sendEmailWithAttachment(
+			customerEmail,
+            subject,
+            plainTextMessage,
+			pdfPath,
+		);
+
+		fs.unlinkSync(pdfPath);
+	} catch (error) {
+		console.error('Error in createInvoice service:', error);
+		throw error;
+	}
+};
+
+const generatePDF = async (htmlContent, invoiceNumber) => {
+	const pdfPath = path.join(
+		__dirname,
+		'..',
+		'..',
+		'uploads',
+		`invoice_${invoiceNumber}.pdf`,
+	);
+	const browser = await puppeteer.launch();
+	const page = await browser.newPage();
+
+	await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+	await page.pdf({
+		path: pdfPath,
+		format: 'A4',
+		printBackground: true,
+	});
+
+	await browser.close();
+	return pdfPath;
+};
+
+const sendEmailWithAttachment = async (to, subject, text, pdfPath) => {
+	try {
+		const smtpSettings = await smtpDetailsModel.findOne();
+
+		let transporter = nodemailer.createTransport({
+			service: 'gmail',
+			host: smtpSettings.smtpHost,
+			port: smtpSettings.smtpPort,
+			auth: {
+				user: smtpSettings.username,
+				pass: smtpSettings.password,
+			},
+		});
+
+		let mailOptions = {
+			from: `"SAHL" <${smtpSettings.username}>`,
+			to: to,
+			subject: subject,
+			text: text,
+			attachments: [
+				{
+					filename: path.basename(pdfPath),
+					path: pdfPath,
+				},
+			],
+		};
+
+		let info = await transporter.sendMail(mailOptions);
+
+		console.log('Message sent: %s', info.messageId);
+	} catch (error) {
+		throw error;
+	}
+};
+
+const generateInvoiceHTML = (invoiceData) => {
+	const {
+		invoiceNumber,
+		formattedInvoiceDate,
+		brandName,
+		storeDetails,
+		subscriptionDetails,
+		currency,
+		discountedPrice,
+		taxPercentage,
+		taxAmount,
+		grandTotal,
+		subTotalInWords,
+	} = invoiceData;
+
+	return `
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <meta charset=UTF-8>
+    <meta name=viewport content="width=device-width, initial-scale=1.0">
+    <title>SAHL Tax Invoice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #00aa44;
+        }
+        .logo {
+            font-size: 48px;
+            font-weight: bold;
+            color: #00aa44;
+            text-decoration: none;
+        }
+        .invoice-title {
+            font-size: 24px;
+            margin: 10px 0;
+            color: #333;
+        }
+        .invoice-details, .company-info, .customer-info {
+            margin-bottom: 30px;
+        }
+        .invoice-details {
+            text-align: right;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #00aa44;
+            color: white;
+        }
+        .totals {
+            text-align: right;
+            margin-bottom: 30px;
+        }
+        .bank-details {
+            margin-bottom: 30px;
+            padding: 0;
+        }
+        .note {
+            font-style: italic;
+            margin-top: 30px;
+        }
+        @media only screen and (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            .logo {
+                font-size: 36px;
+            }
+            .invoice-title {
+                font-size: 20px;
+            }
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class=container>
+        <div class=header>
+        <img width="100" height="30" src="data:image/png;base64,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" alt="Sahl Logo" style="cursor: pointer;">
+        <h1 class=invoice-title>TAX INVOICE</h1>
+        </div>
+
+        <div class=invoice-details>
+            <p><strong>INVOICE DATE:  ${formattedInvoiceDate}</strong></p>
+            <p><strong>INVOICE No: ${invoiceNumber}</strong> </p>
+        </div>
+
+        <div class=company-info>
+            <p><strong>Sahl by Igenerate Data and Classification and Analysis Services.</strong></p>
+            <p>Floor # 13, Office # 46, One Tower, Sheikh Zayed Road, Dubai, United Arab Emirates</p>
+            <p>Contact Number: +971 55 430 1008</p>
+            <p>TRN: 100494014200003</p>
+        </div>
+
+        <div class=customer-info>
+            <p><strong>Prepared for:</strong>${storeDetails.name}</p>
+            <p>${storeDetails.address}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ITEM</th>
+                    <th>PRICE(${currency}) / ${subscriptionDetails.billingCycle}</th>
+                    <th>TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>SAHL Premium</td>
+                    <td>${subscriptionDetails.amount} ${subscriptionDetails.currency}</td>
+                    <td>${discountedPrice} ${subscriptionDetails.currency}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class=totals>
+            <p>Total Tax Amount ${taxPercentage}%: ${taxAmount} ${subscriptionDetails.currency}</p>
+            <p><strong>Total Amount Inc. VAT: ${grandTotal} ${subscriptionDetails.currency}</strong></p>
+            <p><em>Sub total in words: ${subTotalInWords}</em></p>
+        </div>
+
+        <div class=bank-details>
+            <h3>Bank Details:</h3>
+            <p><strong>Bank Name:</strong> Mashreq NEO [099]</p>
+            <p><strong>Account Name:</strong> Igenerate data classification and analysis services</p>
+            <p><strong>Bank swift code:</strong> BOMLAEAD</p>
+            <p><strong>Account Number:</strong> 019100868674</p>
+            <p><strong>IBAN No:</strong> AE900330000019100868674</p>
+        </div>
+
+        <p class=note>NOTE: Please transfer your payment directly to the mentioned bank account</p>
+        <p>If you have any questions about this invoice, please contact on +971 55 430 1008</p>
+        <p><strong>Thank you for your business!</strong></p>
+    </div>
+</body>
+</html>
+    `;
+};
+
+export const findAllInvoice = async (query) => {
+	try {
+		let { _id } = query;
+
+		if (_id) {
+			const invoice = await invoiceModel.findOne({ _id });
+			if (!invoice) throw new Error('Invoice not found');
+
+			return {
+				invoiceData: [invoice],
+			};
+		} else {
+			const invoices = await invoiceModel.find({});
+			return {
+				invoiceData: invoices,
+			};
+		}
+	} catch (error) {
+		console.error('Error in findAllInvoice service:', error.message);
+		throw error;
+	}
+};
+
+export default {
+	createInvoice,
+	findAllInvoice,
+};
+
+
+
+
+
+
+invoice controller.js +__________________________________________________________________________________
+
+import { invoiceService } from '../services';
+
+const createInvoice = async (req, res) => {
+	try {
+		const {
+			brandId,
+			storeId,
+			subscriptionId,
+			customerEmail,
+			discountPercentage,
+			taxPercentage,
+		} = req.body;
+
+		if (
+			!brandId ||
+			!storeId ||
+			!customerEmail ||
+			!subscriptionId ||
+			!taxPercentage
+		)
+			throw Error('Required fields are missing');
+
+		await invoiceService.createInvoice({
+			brandId,
+			storeId,
+			subscriptionId,
+			discountPercentage,
+			taxPercentage,
+			customerEmail,
+		});
+
+		res.status(200).send({
+			success: true,
+			message: 'Invoice created and email sent successfully',
+		});
+	} catch (error) {
+		res.status(500).send({
+			success: false,
+			message: 'Failed to create invoice',
+		});
+	}
+};
+
+const getInvoice = async (req, res) => {
+	try {
+		let { query } = req;
+		let data = await invoiceService.findAllInvoice(query);
+
+		if (!data) throw new Error('No Invoice found');
+
+		res.status(200).send({
+			success: true,
+			data: data.invoiceData,
+		});
+	} catch (error) {
+		console.error('Error in getInvoice:', error.message);
+		res.status(400).send({
+			success: false,
+			message: error.message || error,
+		});
+	}
+};
+
+export default {
+	createInvoice,
+	getInvoice,
+};
