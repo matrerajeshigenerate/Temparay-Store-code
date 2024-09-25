@@ -1,0 +1,63 @@
+getchartdata:
+
+const getChartData = async (req, res) => {
+    try {
+        console.log('🚀 ~ file: order.controller.js:1860 ~ getChartData ~ query:', req.query);
+        infoLogger.sahlLogger(req.method, req.body, req.originalUrl);
+        
+        let { currentUser, query } = req;
+        let { storeId, timeframe } = query;  // Getting `timeframe` from query
+        let storesID, yearChartData, chartData;
+
+        // Validate storeId and set storesID
+        if (!storeId || storeId === 'null' || storeId === 'undefined' ||
+            (['SUPER_USER', 'SUPER_CLIENT'].includes(currentUser.role) && storeId === '-1')) {
+            storesID = currentUser.storeId;
+        } else {
+            if (!ObjectID.isValid(storeId) || !storeId) throw new Error('Store Is Not Found');
+            storesID = [ObjectID(storeId)];
+        }
+
+        let data = {};  // Initialize response data
+
+        // Fetch chart data based on the timeframe or default to 'today'
+        switch (timeframe) {
+            case 'yesterday':
+                chartData = await orderService.findDayChartData(false, storesID);
+                data.yesterdayChartData = chartData;
+                break;
+            case 'daybeforeyesterday':
+                chartData = await orderService.findDayChartData(null, storesID);
+                data.daybeforeyesterdayChartData = chartData;
+                break;
+            case 'thisYear':
+                yearChartData = await orderService.findChartData(true, storesID);
+                data.yearChartData = yearChartData;
+                break;
+            default:
+                // Default case if no timeframe or unknown timeframe is passed, fetch today's data
+                chartData = await orderService.findDayChartData(true, storesID);
+                data.todayChartData = chartData;
+                break;
+        }
+
+        // Optionally, fetch total sales by platform for the provided timeframe
+        if (timeframe) {
+            data[timeframe] = await orderService.allorderByPlatform(storesID, timeframe);
+        }
+
+        res.status(200).send({
+            success: true,
+            data,
+            yearChartData: yearChartData || null  // Re  turn yearChartData if it's requested
+        });
+
+    } catch (err) {
+        console.log('🚀 ~ file: order.controller.js:1917 ~ getChartData ~ err:', err);
+        errorLogger(err.message || err, req.originalUrl);
+        res.status(400).send({
+            success: false,
+            message: err.message
+        });
+    }
+};
