@@ -1,63 +1,462 @@
-getchartdata:
+Get chart Data controlller code ::::
 
 const getChartData = async (req, res) => {
-    try {
-        console.log('🚀 ~ file: order.controller.js:1860 ~ getChartData ~ query:', req.query);
-        infoLogger.sahlLogger(req.method, req.body, req.originalUrl);
-        
-        let { currentUser, query } = req;
-        let { storeId, timeframe } = query;  // Getting `timeframe` from query
-        let storesID, yearChartData, chartData;
+	try {
+		console.log(
+			'🚀 ~ file: order.controller.js:1860 ~ getChartData ~ query:',
+			req.query,
+		);
+		infoLogger.sahlLogger(req.method, req.body, req.originalUrl);
 
-        // Validate storeId and set storesID
-        if (!storeId || storeId === 'null' || storeId === 'undefined' ||
-            (['SUPER_USER', 'SUPER_CLIENT'].includes(currentUser.role) && storeId === '-1')) {
-            storesID = currentUser.storeId;
-        } else {
-            if (!ObjectID.isValid(storeId) || !storeId) throw new Error('Store Is Not Found');
-            storesID = [ObjectID(storeId)];
-        }
+		let { currentUser, query } = req;
+		let { storeId, timeframe } = query;
+		console.log('storeId :>> ', storeId);
+		let storesID, yearChartData, chartData;
 
-        let data = {};  // Initialize response data
+		if (
+			!storeId ||
+			storeId === 'null' ||
+			storeId === 'undefined' ||
+			(['SUPER_USER', 'SUPER_CLIENT'].includes(currentUser.role) &&
+				storeId === '-1')
+		) {
+			storesID = currentUser.storeId;
+		} else {
+			if (!ObjectID.isValid(storeId) || !storeId)
+				throw new Error('Store Is Not Found');
+			storesID = [ObjectID(storeId)];
+		}
 
-        // Fetch chart data based on the timeframe or default to 'today'
-        switch (timeframe) {
-            case 'yesterday':
-                chartData = await orderService.findDayChartData(false, storesID);
-                data.yesterdayChartData = chartData;
-                break;
-            case 'daybeforeyesterday':
-                chartData = await orderService.findDayChartData(null, storesID);
-                data.daybeforeyesterdayChartData = chartData;
-                break;
-            case 'thisYear':
-                yearChartData = await orderService.findChartData(true, storesID);
-                data.yearChartData = yearChartData;
-                break;
-            default:
-                // Default case if no timeframe or unknown timeframe is passed, fetch today's data
-                chartData = await orderService.findDayChartData(true, storesID);
-                data.todayChartData = chartData;
-                break;
-        }
+		let data = {};
+		let yesterdayChartData;
+		let todayChartData;
+		let daybeforeyesterday;
+		let thisWeekChartData;
+		let lastWeekChartData;
+		let last7DaysChartData;
+		let previous7DaysChartData;
+		let thisMonthChartData;
+		let previousMonthChartData;
+		let current30DaysChartData;
+		let previous30DaysChartData;
+		let current90DaysChartData;
+		let previous90DaysChartData;
 
-        // Optionally, fetch total sales by platform for the provided timeframe
-        if (timeframe) {
-            data[timeframe] = await orderService.allorderByPlatform(storesID, timeframe);
-        }
+		switch (timeframe) {
+			case 'today':
+				todayChartData = await orderService.findDayChartData(true, storesID);
+				yesterdayChartData = await orderService.findDayChartData(
+					false,
+					storesID,
+				);
+				data.todayChartData = todayChartData;
+				data.yesterdayChartData = yesterdayChartData;
+				break;
+			case 'yesterday':
+				yesterdayChartData = await orderService.findDayChartData(
+					false,
+					storesID,
+				);
+				daybeforeyesterday = await orderService.findDayChartData(
+					null,
+					storesID,
+				);
+				data.yesterdayChartData = yesterdayChartData;
+				data.daybeforeyesterday = daybeforeyesterday;
+				break;
+			case 'thisYear':
+				yearChartData = await orderService.findChartData(false, storesID);
+				data.yearChartData = yearChartData;
+				break;
+			case 'thisWeek':
+				thisWeekChartData = await orderService.findWeekChartData(
+					true,
+					storesID,
+				);
+				data.thisWeekChartData = thisWeekChartData;
+				lastWeekChartData = await orderService.findWeekChartData(
+					false,
+					storesID,
+				);
+				data.lastWeekChartData = lastWeekChartData;
+				break;
+			case 'last7Days':
+				last7DaysChartData = await orderService.findLast7DaysChartData(
+					true,
+					storesID,
+				);
+				data.last7DaysChartData = last7DaysChartData;
+				previous7DaysChartData = await orderService.findLast7DaysChartData(
+					false,
+					storesID,
+				);
+				data.previous7DaysChartData = previous7DaysChartData;
+				break;
+			case 'thisMonth':
+				thisMonthChartData = await orderService.findMonthChartData(
+					true,
+					storesID,
+				);
+				data.thisMonthChartData = thisMonthChartData;
+				previousMonthChartData = await orderService.findMonthChartData(
+					false,
+					storesID,
+				);
+				data.previousMonthChartData = previousMonthChartData;
+				break;
+			case 'last30Days':
+				current30DaysChartData = await orderService.findLast30DaysChartData(
+					true,
+					storesID,
+				);
+				data.current30DaysChartData = current30DaysChartData;
+				previous30DaysChartData = await orderService.findLast30DaysChartData(
+					false,
+					storesID,
+				);
+				data.previous30DaysChartData = previous30DaysChartData;
+				break;
+			case 'last90Days':
+				current90DaysChartData = await orderService.find90DaysChartData(
+					true,
+					storesID,
+				);
+				data.current90DaysChartData = current90DaysChartData;
+				previous90DaysChartData = await orderService.find90DaysChartData(
+					false,
+					storesID,
+				);
+				data.previous90DaysChartData = previous90DaysChartData;
+				break;
 
-        res.status(200).send({
-            success: true,
-            data,
-            yearChartData: yearChartData || null  // Re  turn yearChartData if it's requested
-        });
+			default:
+				break;
+		}
 
-    } catch (err) {
-        console.log('🚀 ~ file: order.controller.js:1917 ~ getChartData ~ err:', err);
-        errorLogger(err.message || err, req.originalUrl);
-        res.status(400).send({
-            success: false,
-            message: err.message
-        });
-    }
+		if (timeframe) {
+			data[timeframe] = await orderService.allorderByPlatform(
+				storesID,
+				timeframe,
+			);
+		}
+
+		res.status(200).send({
+			success: true,
+			data,
+		});
+	} catch (err) {
+		console.log(
+			'🚀 ~ file: order.controller.js:1917 ~ getChartData ~ err:',
+			err,
+		);
+		errorLogger(err.message || err, req.originalUrl);
+		res.status(400).send({
+			success: false,
+			message: err.message,
+		});
+	}
+};
+
+
+
+service file which is work well :::::
+
+
+const findWeekChartData = async (isCurrentWeek, storesID) => {
+	let filter = {
+		parent_order_id: { $exists: false },
+	};
+
+	const endOfToday = moment().endOf('day').toDate();
+	console.log('🚀 ~ findThisWeekChartData ~ endOfToday:', endOfToday);
+	const startOfWeek = moment().startOf('week').toDate(); // Start of the current week
+	console.log('🚀 ~ findThisWeekChartData ~ startOfWeek:', startOfWeek);
+	const startOfLastWeek = moment().subtract(1, 'week').startOf('week').toDate(); // Start of the previous week
+	console.log('🚀 ~ findThisWeekChartData ~ startOfLastWeek:', startOfLastWeek);
+	const endOfLastWeek = moment().subtract(1, 'week').endOf('week').toDate(); // End of the previous week
+	console.log('🚀 ~ findThisWeekChartData ~ endOfLastWeek:', endOfLastWeek);
+
+	let dates = [];
+	if (isCurrentWeek) {
+		filter = {
+			...filter,
+			createdAt: { $lte: endOfToday, $gte: startOfWeek },
+		};
+		for (let i = 0; i < 7; i++) {
+			dates.push(moment().startOf('week').add(i, 'days').format('YYYY-MM-DD'));
+		}
+	} else {
+		filter = {
+			...filter,
+			createdAt: { $lte: endOfLastWeek, $gte: startOfLastWeek },
+		};
+		for (let i = 0; i < 7; i++) {
+			dates.push(moment().startOf('week').subtract(1, 'week').add(i, 'days').format('YYYY-MM-DD'));
+		}
+	}
+
+	let orderData = await orderModel.aggregate([
+		{
+			$match: {
+				...filter,
+				store_id: { $in: storesID },
+				$or: [
+					{ 'data.new_state': 'Food Ready' },
+					{ 'data.new_state': 'Completed' },
+				],
+			},
+		},
+		{
+			$addFields: {
+				amount: '$data.order.details.order_total', // Ensure this is the correct path
+				createdAt: '$createdAt', // Keep track of createdAt for date conversion
+				time: { $toLong: '$createdAt' }, // Convert createdAt to timestamp
+			},
+		},
+		{ $unwind: '$amount' },
+		{ $unwind: '$amount' },
+		{
+			$project: {
+				createdAt: 1,
+				amount: 1,
+			},
+		},
+		{
+			$group: {
+				_id: {
+					$dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+				},
+				time: { $first: { $toLong: '$createdAt' } }, // Get the timestamp of the first occurrence
+				count: { $sum: 1 },
+				sales: { $sum: '$amount' },
+			},
+		},
+		{ $sort: { _id: 1 } },
+	]);
+
+	const orderDataMap = new Map();
+	orderData.forEach((entry) => {
+		orderDataMap.set(entry._id, {
+			count: entry.count,
+			sales: entry.sales,
+		});
+	});
+
+	const formattedData = dates.map((date) => {
+		const entry = orderDataMap.get(date) || { count: 0, sales: 0 };
+		return {
+			_id: date,
+			time: moment(date).toISOString(),
+			count: entry.count,
+			sales: entry.sales,
+		};
+	});
+
+	return formattedData;
+};
+
+_____________________________________________________________________________________________________________________________
+
+const findLast7DaysChartData = async (isLast7Days, storesID) => {
+	let filter = {
+		parent_order_id: { $exists: false },
+	};
+
+	const endOfToday = moment().endOf('day').toDate();
+	console.log('🚀 ~ findLast7DaysChartData ~ endOfToday:', endOfToday);
+	const startOfLast7Days = moment().subtract(6, 'days').startOf('day').toDate();
+	console.log(
+		'🚀 ~ findLast7DaysChartData ~ startOfLast7Days:',
+		startOfLast7Days,
+	);
+	const startOfPrevious7Days = moment()
+		.subtract(13, 'days')
+		.startOf('day')
+		.toDate();
+	console.log(
+		'🚀 ~ findLast7DaysChartData ~ startOfPrevious7Days:',
+		startOfPrevious7Days,
+	);
+	const endOfPrevious7Days = moment().subtract(7, 'days').endOf('day').toDate();
+	console.log(
+		'🚀 ~ findLast7DaysChartData ~ endOfPrevious7Days:',
+		endOfPrevious7Days,
+	);
+
+	let dates = [];
+	if (isLast7Days) {
+		filter = {
+			...filter,
+			createdAt: { $lte: endOfToday, $gte: startOfLast7Days },
+		};
+		for (let i = 6; i >= 0; i--) {
+			dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
+		}
+	} else {
+		filter = {
+			...filter,
+			createdAt: { $lte: endOfPrevious7Days, $gte: startOfPrevious7Days },
+		};
+		for (let i = 13; i >= 7; i--) {
+			dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
+		}
+	}
+
+	let orderData = await orderModel.aggregate([
+		{
+			$match: {
+				...filter,
+				store_id: { $in: storesID },
+				$or: [
+					{ 'data.new_state': 'Food Ready' },
+					{ 'data.new_state': 'Completed' },
+				],
+			},
+		},
+		{
+			$addFields: {
+				amount: '$data.order.details.order_total', // Ensure this is the correct path
+				createdAt: '$createdAt', // Keep track of createdAt for date conversion
+				time: { $toLong: '$createdAt' }, // Convert createdAt to timestamp
+			},
+		},
+		{ $unwind: '$amount' },
+		{ $unwind: '$amount' },
+		{
+			$project: {
+				createdAt: 1,
+				amount: 1,
+			},
+		},
+		{
+			$group: {
+				_id: {
+					$dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+				},
+				time: { $first: { $toLong: '$createdAt' } }, // Get the timestamp of the first occurrence
+				count: { $sum: 1 },
+				sales: { $sum: '$amount' },
+			},
+		},
+		{ $sort: { _id: 1 } },
+	]);
+
+	const orderDataMap = new Map();
+	orderData.forEach((entry) => {
+		orderDataMap.set(entry._id, {
+			count: entry.count,
+			sales: entry.sales,
+		});
+	});
+
+	const formattedData = dates.map((date) => {
+		const entry = orderDataMap.get(date) || { count: 0, sales: 0 };
+		return {
+			_id: date,
+			time: moment(date).toISOString(),
+			count: entry.count,
+			sales: entry.sales,
+		};
+	});
+
+	return formattedData;
+};
+
+_______________________________________________________this month done but testing require for this month_________________________
+
+const findMonthChartData = async (isCurrentMonth, storesID) => {
+	let filter = {
+		parent_order_id: { $exists: false },
+	};
+
+	// Calculate the start and end of the current month
+	const startOfCurrentMonth = moment().startOf('month').toDate();
+	console.log('🚀 ~ findMonthChartData ~ startOfCurrentMonth:', startOfCurrentMonth);
+	const endOfCurrentMonth = moment().endOf('month').toDate();
+	console.log('🚀 ~ findMonthChartData ~ endOfCurrentMonth:', endOfCurrentMonth);
+
+	// Calculate the start and end of the previous month
+	const startOfPreviousMonth = moment().subtract(1, 'month').startOf('month').toDate();
+	console.log('🚀 ~ findMonthChartData ~ startOfPreviousMonth:', startOfPreviousMonth);
+	const endOfPreviousMonth = moment().subtract(1, 'month').endOf('month').toDate();
+	console.log('🚀 ~ findMonthChartData ~ endOfPreviousMonth:', endOfPreviousMonth);
+
+	let dates = [];
+	if (isCurrentMonth) {
+		filter = {
+			...filter,
+			createdAt: { $lte: endOfCurrentMonth, $gte: startOfCurrentMonth },
+		};
+		const daysInMonth = moment().daysInMonth();
+		for (let i = 0; i < daysInMonth; i++) {
+			dates.push(moment(startOfCurrentMonth).add(i, 'days').format('YYYY-MM-DD'));
+		}
+	} else {
+		filter = {
+			...filter,
+			createdAt: { $lte: endOfPreviousMonth, $gte: startOfPreviousMonth },
+		};
+		const daysInPreviousMonth = moment(startOfPreviousMonth).daysInMonth();
+		for (let i = 0; i < daysInPreviousMonth; i++) {
+			dates.push(moment(startOfPreviousMonth).add(i, 'days').format('YYYY-MM-DD'));
+		}
+	}
+
+	let orderData = await orderModel.aggregate([
+		{
+			$match: {
+				...filter,
+				store_id: { $in: storesID },
+				$or: [
+					{ 'data.new_state': 'Food Ready' },
+					{ 'data.new_state': 'Completed' },
+				],
+			},
+		},
+		{
+			$addFields: {
+				amount: '$data.order.details.order_total', // Ensure this is the correct path
+				createdAt: '$createdAt',
+				time: { $toLong: '$createdAt' }, // Convert createdAt to timestamp
+			},
+		},
+		{ $unwind: '$amount' },
+		{
+			$project: {
+				createdAt: 1,
+				amount: 1,
+			},
+		},
+		{
+			$group: {
+				_id: {
+					$dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+				},
+				time: { $first: { $toLong: '$createdAt' } },
+				count: { $sum: 1 },
+				sales: { $sum: '$amount' },
+			},
+		},
+		{ $sort: { _id: 1 } },
+	]);
+
+	const orderDataMap = new Map();
+	orderData.forEach((entry) => {
+		orderDataMap.set(entry._id, {
+			count: entry.count,
+			sales: entry.sales,
+		});
+	});
+
+	const formattedData = dates.map((date) => {
+		const entry = orderDataMap.get(date) || { count: 0, sales: 0 };
+		return {
+			_id: date,
+			time: moment(date).toISOString(),
+			count: entry.count,
+			sales: entry.sales,
+		};
+	});
+
+	return formattedData;
 };
