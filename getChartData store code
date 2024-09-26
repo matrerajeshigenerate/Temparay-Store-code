@@ -684,3 +684,114 @@ const findLast30DaysChartData = async (isLast30Days, storesID) => {
 	return formattedData;
 };
 
+________________________________________________________________________________________________________
+
+// const find90DaysChartData = async (isLast90Days, storesID) => {
+// 	let filter = {
+// 		parent_order_id: { $exists: false },
+// 	};
+
+// 	const endOfToday = moment().endOf('day').toDate();
+// 	console.log('🚀 ~ findLast90DaysChartData ~ endOfToday:', endOfToday);
+// 	const startOfLast90Days = moment()
+// 		.subtract(89, 'days')
+// 		.startOf('day')
+// 		.toDate();
+// 	console.log(
+// 		'🚀 ~ findLast90DaysChartData ~ startOfLast90Days:',
+// 		startOfLast90Days,
+// 	);
+// 	const startOfPrevious90Days = moment()
+// 		.subtract(180, 'days')
+// 		.startOf('day')
+// 		.toDate();
+// 	console.log(
+// 		'🚀 ~ findLast90DaysChartData ~ startOfPrevious90Days:',
+// 		startOfPrevious90Days,
+// 	);
+// 	const endOfPrevious90Days = moment()
+// 		.subtract(90, 'days')
+// 		.endOf('day')
+// 		.toDate();
+// 	console.log(
+// 		'🚀 ~ findLast90DaysChartData ~ endOfPrevious90Days:',
+// 		endOfPrevious90Days,
+// 	);
+
+// 	let dates = [];
+// 	if (isLast90Days) {
+// 		filter = {
+// 			...filter,
+// 			createdAt: { $lte: endOfToday, $gte: startOfLast90Days },
+// 		};
+// 		for (let i = 89; i >= 0; i--) {
+// 			dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
+// 		}
+// 	} else {
+// 		filter = {
+// 			...filter,
+// 			createdAt: { $lte: endOfPrevious90Days, $gte: startOfPrevious90Days },
+// 		};
+// 		for (let i = 179; i >= 90; i--) {
+// 			dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
+// 		}
+// 	}
+
+// 	let orderData = await orderModel.aggregate([
+// 		{
+// 			$match: {
+// 				...filter,
+// 				store_id: { $in: storesID },
+// 				$or: [
+// 					{ 'data.new_state': 'Food Ready' },
+// 					{ 'data.new_state': 'Completed' },
+// 				],
+// 			},
+// 		},
+// 		{
+// 			$addFields: {
+// 				amount: '$data.order.details.order_total', // Ensure this is the correct path
+// 				createdAt: '$createdAt', // Keep track of createdAt for date conversion
+// 				time: { $toLong: '$createdAt' }, // Convert createdAt to timestamp
+// 			},
+// 		},
+// 		{ $unwind: '$amount' },
+// 		{
+// 			$project: {
+// 				createdAt: 1,
+// 				amount: 1,
+// 			},
+// 		},
+// 		{
+// 			$group: {
+// 				_id: {
+// 					$dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+// 				},
+// 				time: { $first: { $toLong: '$createdAt' } }, // Get the timestamp of the first occurrence
+// 				count: { $sum: 1 },
+// 				sales: { $sum: '$amount' },
+// 			},
+// 		},
+// 		{ $sort: { _id: 1 } },
+// 	]);
+
+// 	const orderDataMap = new Map();
+// 	orderData.forEach((entry) => {
+// 		orderDataMap.set(entry._id, {
+// 			count: entry.count,
+// 			sales: entry.sales,
+// 		});
+// 	});
+
+// 	const formattedData = dates.map((date) => {
+// 		const entry = orderDataMap.get(date) || { count: 0, sales: 0 };
+// 		return {
+// 			_id: date,
+// 			time: moment(date).toISOString(),
+// 			count: entry.count,
+// 			sales: entry.sales,
+// 		};
+// 	});
+
+// 	return formattedData;
+// };
