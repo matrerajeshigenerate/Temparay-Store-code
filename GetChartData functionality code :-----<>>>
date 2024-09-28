@@ -1,3 +1,6 @@
+controller.js 
+
+
 const getChartData = async (req, res) => {
 	try {
 		console.log(
@@ -66,10 +69,16 @@ const getChartData = async (req, res) => {
 				data.daybeforeyesterday = daybeforeyesterday;
 				break;
 			case 'thisYear':
-				thisYearChartData = await orderService.findChartData('year',true, storesID)
-				previousYearChartData = await orderService.findChartData('year',false, storesID);
-				data.thisYearChartData = thisYearChartData
-				data.previousYearChartData = previousYearChartData
+				thisYearChartData = await orderService.findYearChartData(
+					true,
+					storesID,
+				);
+				previousYearChartData = await orderService.findYearChartData(
+					false,
+					storesID,
+				);
+				data.thisYearChartData = thisYearChartData;
+				data.previousYearChartData = previousYearChartData;
 				break;
 			case 'thisWeek':
 				thisWeekChartData = await orderService.findChartData(
@@ -96,7 +105,7 @@ const getChartData = async (req, res) => {
 					'lastNDays',
 					false,
 					storesID,
-					7
+					7,
 				);
 				data.last7DaysChartData = last7DaysChartData;
 				data.previous7DaysChartData = previous7DaysChartData;
@@ -120,34 +129,33 @@ const getChartData = async (req, res) => {
 					'lastNDays',
 					true,
 					storesID,
-					30
+					30,
 				);
 				previous30DaysChartData = await orderService.findChartData(
 					'lastNDays',
 					false,
 					storesID,
-					30
+					30,
 				);
 				data.current30DaysChartData = current30DaysChartData;
 				data.previous30DaysChartData = previous30DaysChartData;
 				break;
 			case 'last90Days':
 				current90DaysChartData = await orderService.findChartData(
-					"lastNDays",
+					'lastNDays',
 					true,
 					storesID,
-					90
+					90,
 				);
 				previous90DaysChartData = await orderService.findChartData(
-					"lastNDays",
+					'lastNDays',
 					false,
 					storesID,
-					90
+					90,
 				);
 				data.current90DaysChartData = current90DaysChartData;
 				data.previous90DaysChartData = previous90DaysChartData;
 				break;
-
 			default:
 				break;
 		}
@@ -176,178 +184,559 @@ const getChartData = async (req, res) => {
 	}
 };
 
-____________________________________________________________________________________________________________
 
-services: 
 
-const findChartData = async (type, isCurrent, storesID, days = null) => {
-    let filter = {
-        parent_order_id: { $exists: false },
-    };
 
-    let dates = [];
-    const endOfToday = moment().endOf('day').toDate();
 
-    if (type === 'week' || type === 'month' || type === 'year') {
-        // Handle week, month, year types
-        console.log(`Fetching ${type} data...`);
+services for getChartData 
 
-        let startDate, endDate;
-        if (type === 'week') {
-            const startOfWeek = moment().startOf('week').toDate();
-            const startOfLastWeek = moment().subtract(1, 'week').startOf('week').toDate();
-            const endOfLastWeek = moment().subtract(1, 'week').endOf('week').toDate();
 
-            if (isCurrent) {
-                filter.createdAt = { $lte: endOfToday, $gte: startOfWeek };
-                for (let i = 0; i < 7; i++) {
-                    dates.push(moment().startOf('week').add(i, 'days').format('YYYY-MM-DD'));
-                }
-            } else {
-                filter.createdAt = { $lte: endOfLastWeek, $gte: startOfLastWeek };
-                for (let i = 0; i < 7; i++) {
-                    dates.push(
-                        moment()
-                            .startOf('week')
-                            .subtract(1, 'week')
-                            .add(i, 'days')
-                            .format('YYYY-MM-DD'),
-                    );
-                }
-            }
-        } else if (type === 'month') {
-            const startOfCurrentMonth = moment().startOf('month').toDate();
-            const endOfCurrentMonth = moment().endOf('month').toDate();
-            const startOfPreviousMonth = moment().subtract(1, 'month').startOf('month').toDate();
-            const endOfPreviousMonth = moment().subtract(1, 'month').endOf('month').toDate();
+findDayChartData ::service file :
 
-            if (isCurrent) {
-                filter.createdAt = { $lte: endOfCurrentMonth, $gte: startOfCurrentMonth };
-                const daysInMonth = moment().daysInMonth();
-                for (let i = 0; i < daysInMonth; i++) {
-                    dates.push(
-                        moment(startOfCurrentMonth).add(i, 'days').format('YYYY-MM-DD'),
-                    );
-                }
-            } else {
-                filter.createdAt = { $lte: endOfPreviousMonth, $gte: startOfPreviousMonth };
-                const daysInPreviousMonth = moment(startOfPreviousMonth).daysInMonth();
-                for (let i = 0; i < daysInPreviousMonth; i++) {
-                    dates.push(
-                        moment(startOfPreviousMonth).add(i, 'days').format('YYYY-MM-DD'),
-                    );
-                }
-            }
-        } else if (type === 'year') {
-            const startOfCurrentYear = moment().startOf('year').toDate();
-            const endOfCurrentYear = moment().endOf('year').toDate();
-            const startOfPreviousYear = moment().subtract(1, 'year').startOf('year').toDate();
-            const endOfPreviousYear = moment().subtract(1, 'year').endOf('year').toDate();
 
-            if (isCurrent) {
-                filter.createdAt = { $lte: endOfCurrentYear, $gte: startOfCurrentYear };
-                for (let i = 0; i < 12; i++) {
-                    dates.push(moment(startOfCurrentYear).add(i, 'months').format('YYYY-MM-DD'));
-                }
-            } else {
-                filter.createdAt = { $lte: endOfPreviousYear, $gte: startOfPreviousYear };
-                for (let i = 0; i < 12; i++) {
-                    dates.push(moment(startOfPreviousYear).add(i, 'months').format('YYYY-MM-DD'));
-                }
-            }
-        }
-    } else if (type === 'lastNDays') {
-        console.log(`Fetching last ${days} days data...`);
+const findDayChartData = async (previous, storesID) => {
+	let startime, filter;
+	filter = {
+		parent_order_id: { $exists: false }, 
+	};
+	const startofToday = moment().startOf('day').toDate();
+	const endofToday = moment().endOf('day').toDate();
+	const startofYesterday = moment()
+		.subtract(1, 'days')
+		.startOf('day')
+		.toDate();
+	const endOfYesterday = moment().subtract(1, 'days').endOf('day').toDate();
+	const startdaybeforeyesterday = moment()
+		.subtract(2, 'days')
+		.startOf('day')
+		.toDate();
+	const enddaybeforeyesterday = moment()
+		.subtract(2, 'days')
+		.endOf('day')
+		.toDate();
+	if (previous == true && startofToday && endofToday) {
+		(startime = moment().startOf('day').valueOf()),
+			(filter = {
+				...filter,
+				createdAt: { $lte: endofToday, $gte: startofToday },
+			});
+	} else if (previous == false && startofYesterday && endOfYesterday) {
+		(startime = moment().subtract(1, 'days').startOf('day').valueOf()),
+			(filter = {
+				...filter,
+				createdAt: { $lte: endOfYesterday, $gte: startofYesterday },
+			});
+	} else if (
+		previous == null &&
+		startdaybeforeyesterday &&
+		enddaybeforeyesterday
+	) {
+		(startime = moment().subtract(2, 'days').startOf('day').toDate()),
+			(filter = {
+				...filter,
+				createdAt: {
+					$lte: enddaybeforeyesterday,
+					$gte: startdaybeforeyesterday,
+				},
+			});
+	}
+	let orderData = await orderModel.aggregate([
+		{
+			$match: {
+				store_id: { $in: storesID },
+				$or: [
+					{ 'data.new_state': 'Food Ready' },
+					{ 'data.new_state': 'Completed' },
+				],
+				...filter,
+			},
+		},
+		{
+			$addFields: {
+				createdAt: '$createdAt',
+				amount: {
+					$cond: {
+						if: {
+							$in: [process.env.PLATFORM_KEY, '$data.order.details.channel'],
+						},
+						then: '$data.order.details.order_total',
+						else: '$data.order.details.order_subtotal',
+					},
+				},
+			},
+		},
+		{ $unwind: '$amount' },
+		{ $unwind: '$amount' },
+		{
+			$project: {
+				createdAt: 1,
+				amount: 1,
+				orderCreatedAt: 1,
+			},
+		},
+	]);
+	let timeArr = [];
+	let addHours = 0;
+	for (let index = 0; index < 12; index++) {
+		let startTime = startime;
+		let amountCount = 0;
+		let orderCount = orderData.filter((e) => {
+			if (
+				moment(startTime).add(addHours, 'hours').valueOf() <
+					Number(e.orderCreatedAt) &&
+				Number(e.orderCreatedAt) <
+					moment(startTime)
+						.add(addHours + 2, 'hours')
+						.valueOf()
+			) {
+				amountCount = amountCount + e.amount;
+				return e;
+			}
+		}).length;
+		let obj = {
+			Date_time: moment(startTime).add(addHours, 'hours').format(),
+			count: orderCount,
+			sales: amountCount,
+		};
+		timeArr.push(obj);
+		addHours = addHours + 2;
+	}
 
-        const startOfLastNDays = moment().subtract(days - 1, 'days').startOf('day').toDate();
-        const startOfPreviousNDays = moment().subtract(2 * days - 1, 'days').startOf('day').toDate();
-        const endOfPreviousNDays = moment().subtract(days, 'days').endOf('day').toDate();
-
-        if (isCurrent) {
-            filter.createdAt = { $lte: endOfToday, $gte: startOfLastNDays };
-            for (let i = days - 1; i >= 0; i--) {
-                dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
-            }
-        } else {
-            filter.createdAt = { $lte: endOfPreviousNDays, $gte: startOfPreviousNDays };
-            for (let i = 2 * days - 1; i >= days; i--) {
-                dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
-            }
-        }
-    }
-
-    let orderData = await orderModel.aggregate([
-        {
-            $match: {
-                ...filter,
-                store_id: { $in: storesID },
-                $or: [
-                    { 'data.new_state': 'Food Ready' },
-                    { 'data.new_state': 'Completed' },
-                ],
-            },
-        },
-        {
-            $addFields: {
-                amount: '$data.order.details.order_total',
-                createdAt: '$createdAt',
-                time: { $toLong: '$createdAt' },
-            },
-        },
-        { $unwind: '$amount' },
-        {
-            $project: {
-                createdAt: 1,
-                amount: 1,
-            },
-        },
-        {
-            $group: {
-                _id: {
-                    $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
-                },
-                time: { $first: { $toLong: '$createdAt' } },
-                count: { $sum: 1 },
-                sales: { $sum: '$amount' },
-            },
-        },
-        { $sort: { _id: 1 } },
-    ]);
-
-    const orderDataMap = new Map(orderData.map(entry => [entry._id, entry]));
-
-    const formattedData = dates.map((date) => {
-        const entry = orderDataMap.get(date) || { count: 0, sales: 0 };
-        return {
-            _id: date,
-            time: moment(date).toISOString(),
-            count: entry.count,
-            sales: entry.sales,
-        };
-    });
-
-    return formattedData;
+	return timeArr;
 };
 
 
+__________________________________________________________________________________________________
+
+findYearChartData -----------------------> service file 
+
+const findYearChartData = async (isThisYear, storesID) => {
+	let filter = {
+		parent_order_id: { $exists: false },
+	};
+
+	const startOfYear = moment().clone().startOf('year').toDate();
+	const endOfYear = moment().clone().endOf('year').toDate();
+	const currentLastYear = moment().clone().subtract(1, 'year').year();
+	const startOfLastYear = moment(currentLastYear, 'YYYY')
+		.startOf('year')
+		.toDate();
+	const endOfLastYear = moment(currentLastYear, 'YYYY').endOf('year').toDate();
+
+	if (isThisYear) {
+		filter.createdAt = { $lte: endOfYear, $gte: startOfYear };
+	} else {
+		filter.createdAt = { $lte: endOfLastYear, $gte: startOfLastYear };
+	}
+	console.log('filter :>> ', filter);
+
+	// MongoDB aggregation pipeline
+	let orderData = await orderModel.aggregate([
+		{
+			$match: {
+				store_id: { $in: storesID },
+				$or: [
+					{ 'data.new_state': 'Food Ready' },
+					{ 'data.new_state': 'Completed' },
+				],
+				...filter,
+			},
+		},
+		{
+			$addFields: {
+				amount: {
+					$cond: {
+						if: {
+							$in: [process.env.PLATFORM_KEY, '$data.order.details.channel'],
+						},
+						then: '$data.order.details.order_total',
+						else: '$data.order.details.order_subtotal',
+					},
+				},
+				createdAt: '$createdAt',
+				time: { $toLong: '$createdAt' },
+			},
+		},
+		{ $unwind: '$amount' },
+		{
+			$project: {
+				createdAt: 1,
+				amount: 1,
+			},
+		},
+		{
+			$group: {
+				_id: {
+					$dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+				},
+				count: { $sum: 1 },
+				sales: { $sum: '$amount' },
+			},
+		},
+		{ $sort: { _id: 1 } },
+	]);
+
+	// Format the data
+	const formattedData = orderData.map((order) => {
+		return {
+			Date_time: moment(order._id).toISOString(),
+			count: order.count,
+			sales: order.sales,
+		};
+	});
+	return formattedData;
+};
+
+__________________________________________________________________________________________________________
+findChartData -----------------service file :
+
+
+const findChartData = async (type, isCurrent, storesID, days = null) => {
+	let filter = {
+		parent_order_id: { $exists: false },
+	};
+
+	let dates = [];
+	const endOfToday = new Date(moment().endOf('day').toDate());
+
+	if (type === 'week' || type === 'month' || type === 'year') {
+		let startDate, endDate;
+		if (type === 'week') {
+			const startOfWeek = new Date(moment().startOf('week').toDate());
+			const startOfLastWeek = new Date(
+				moment().subtract(1, 'week').startOf('week').toDate(),
+			);
+			const endOfLastWeek = new Date(
+				moment().subtract(1, 'week').endOf('week').toDate(),
+			);
+
+			if (isCurrent) {
+				filter.createdAt = { $lte: endOfToday, $gte: startOfWeek };
+				for (let i = 0; i < 7; i++) {
+					dates.push(
+						moment().startOf('week').add(i, 'days').format('YYYY-MM-DD'),
+					);
+				}
+			} else {
+				filter.createdAt = { $lte: endOfLastWeek, $gte: startOfLastWeek };
+				for (let i = 0; i < 7; i++) {
+					dates.push(
+						moment()
+							.startOf('week')
+							.subtract(1, 'week')
+							.add(i, 'days')
+							.format('YYYY-MM-DD'),
+					);
+				}
+			}
+		} else if (type === 'month') {
+			const startOfCurrentMonth = new Date(
+				moment().clone().startOf('month').toDate(),
+			);
+			const endOfCurrentMonth = new Date(
+				moment().clone().endOf('month').toDate(),
+			);
+			const startOfLastMonth = new Date(
+				moment().clone().subtract(1, 'month').startOf('month').toDate(),
+			);
+			const endOfLastMonth = new Date(
+				moment().clone().subtract(1, 'month').endOf('month').toDate(),
+			);
+
+			if (isCurrent) {
+				filter.createdAt = {
+					$lte: endOfCurrentMonth,
+					$gte: startOfCurrentMonth,
+				};
+				const daysInMonth = moment().daysInMonth();
+				for (let i = 0; i < daysInMonth; i++) {
+					dates.push(
+						moment(startOfCurrentMonth).add(i, 'days').format('YYYY-MM-DD'),
+					);
+				}
+			} else {
+				filter.createdAt = {
+					$lte: endOfLastMonth,
+					$gte: startOfLastMonth,
+				};
+				const daysInPreviousMonth = moment(startOfLastMonth).daysInMonth();
+				for (let i = 0; i < daysInPreviousMonth; i++) {
+					dates.push(
+						moment(startOfLastMonth).add(i, 'days').format('YYYY-MM-DD'),
+					);
+				}
+			}
+		} 
+	} else if (type === 'lastNDays') {
+		const startOfLastNDays = new Date(
+			moment()
+				.subtract(days - 1, 'days')
+				.startOf('day')
+				.toDate(),
+		);
+
+		const startOfPreviousNDays = new Date(
+			moment()
+				.subtract(2 * days - 1, 'days')
+				.startOf('day')
+				.toDate(),
+		);
+
+		const endOfPreviousNDays = new Date(
+			moment().subtract(days, 'days').endOf('day').toDate(),
+		);
+
+		if (isCurrent) {
+			filter.createdAt = { $lte: endOfToday, $gte: startOfLastNDays };
+			for (let i = days - 1; i >= 0; i--) {
+				dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
+			}
+		} else {
+			filter.createdAt = {
+				$lte: endOfPreviousNDays,
+				$gte: startOfPreviousNDays,
+			};
+			for (let i = 2 * days - 1; i >= days; i--) {
+				dates.push(moment().subtract(i, 'days').format('YYYY-MM-DD'));
+			}
+		}
+	}
+
+	let orderData = await orderModel.aggregate([
+		{
+			$match: {
+				store_id: { $in: storesID },
+				$or: [
+					{ 'data.new_state': 'Food Ready' },
+					{ 'data.new_state': 'Completed' },
+				],
+				...filter,
+			},
+		},
+		{
+			$addFields: {
+				amount: {
+					$cond: {
+						if: {
+							$in: [process.env.PLATFORM_KEY, '$data.order.details.channel'],
+						},
+						then: '$data.order.details.order_total',
+						else: '$data.order.details.order_subtotal',
+					},
+				},
+				createdAt: '$createdAt',
+				time: { $toLong: '$createdAt' },
+			},
+		},
+		{ $unwind: '$amount' },
+		{
+			$project: {
+				createdAt: 1,
+				amount: 1,
+			},
+		},
+		{
+			$group: {
+				_id: {
+					$dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+				},
+				count: { $sum: 1 },
+				sales: { $sum: '$amount' },
+			},
+		},
+		{ $sort: { _id: 1 } },
+	]);
+
+	const orderDataMap = new Map(orderData.map((entry) => [entry._id, entry]));
+
+	const formattedData = dates.map((date) => {
+		const entry = orderDataMap.get(date) || { count: 0, sales: 0 };
+		return {
+			Date_time: moment(date).toISOString(),
+			count: entry.count,
+			sales: entry.sales,
+		};
+	});
+
+	return formattedData;
+};
+
+
+__________________________________________________________________________________________________________
+allorderby platform service file :::::::::::::::::::
 
 
 
 
+const allorderByPlatform = async (storesID, daytime) => {
+	const timeframes = {
+		today: getTimeframeTimestamps('today'),
+		yesterday: getTimeframeTimestamps('yesterday'),
+		thisWeek: getTimeframeTimestamps('thisWeek'),
+		thisMonth: getTimeframeTimestamps('thisMonth'),
+		last7Days: getTimeframeTimestamps('last7Days'),
+		last30Days: getTimeframeTimestamps('last30Days'),
+		last90Days: getTimeframeTimestamps('last90Days'),
+		thisYear: getTimeframeTimestamps('thisYear'),
+	};
+	console.log('daytime :>> ', daytime);
+	console.log('timeframes[daytime] :>> ', timeframes[daytime]);
+	//  filter = {
+	// 	parent_order_id: { $exists: false }, // Add this line to filter out orders with parent_order_id
+	// };
+	let filter = {
+		$or: [
+			{ 'data.new_state': 'Food Ready' },
+			{ 'data.new_state': 'Completed' },
+		],
+		createdAt: {
+			$gte: timeframes[daytime].start,
+			$lte: timeframes[daytime].end,
+		},
+		store_id: { $in: storesID },
+		parent_order_id: { $exists: false },
+	};
 
+	// const getOrder = await orderModel.aggregate([
+	// 	filter,
+	// 	{
+	// 		$project: {
+	// 			amount: {
+	// 				$cond: {
+	// 					if: {
+	// 						$in: [process.env.PLATFORM_KEY, '$data.order.details.channel'],
+	// 					},
+	// 					then: '$data.order.details.order_total',
+	// 					else: '$data.order.details.order_subtotal',
+	// 				},
+	// 			},
+	// 			channel: '$data.order.details.channel',
+	// 		},
+	// 	},
+	// 	{ $unwind: '$amount' },
+	// 	{ $unwind: '$amount' },
+	// 	{ $unwind: '$channel' },
+	// 	{
+	// 		$group: {
+	// 			_id: '$channel',
+	// 			count: { $sum: 1 },
+	// 			sales: { $sum: '$amount' },
+	// 		},
+	// 	},
+	// ]);
+	let getOrder = await orderModel.find(filter);
+	const processOrderData = (data) => {
+		let channelWiseData = {};
 
+		data.forEach((order) => {
+			const orderDetails = order.data[0].order.details;
+			let channel = orderDetails.channel;
 
+			let orderTotal = 0;
+			if (channel === process.env.PLATFORM_KEY) {
+				orderTotal = parseFloat(orderDetails.order_total);
+			} else {
+				orderTotal = parseFloat(orderDetails.order_subtotal);
+			}
+			if (isNaN(orderTotal)) {
+				orderTotal = 0; // Fallback to 0 if orderTotal is NaN
+			}
+			if (!channelWiseData[channel]) {
+				channelWiseData[channel] = {
+					_id: channel,
+					count: 0,
+					sales: 0,
+				};
+			}
 
+			channelWiseData[channel].count++;
+			channelWiseData[channel].sales += orderTotal;
 
+			if (orderDetails && orderDetails.ext_platforms) {
+				orderDetails.ext_platforms.forEach((platform) => {
+					if (platform && platform.discounts) {
+						platform.discounts.forEach((discount) => {
+							if (discount && discount.is_merchant_discount === true) {
+								channelWiseData[channel].sales -=
+									parseFloat(discount.value) || 0;
+							}
+						});
+					}
+				});
+			}
+		});
 
+		let orderData = Object.values(channelWiseData);
+		return orderData;
+	};
 
+	// Assume getOrder is the data you're passing to the function
+	getOrder = processOrderData(getOrder);
 
+	return getOrder;
+};
+_________________________________________________________________________________________________________________________
+getTimeframesTimestamps::===============================>>>>>>
 
+const getTimeframeTimestamps = (timeframe) => {
+	const now = moment();
 
+	moment.updateLocale('en', {
+		week: {
+			dow: 1,
+			doy: 7,
+		},
+	});
+	switch (timeframe) {
+		case 'last30Days':
+			return {
+				start: new Date(
+					now.clone().subtract(29, 'days').startOf('day').toDate(),
+				),
+				end: new Date(now.endOf('day').toDate()),
+			};
+		case 'last7Days':
+			return {
+				start: new Date(
+					now.clone().subtract(6, 'days').startOf('day').toDate(),
+				),
+				end: new Date(now.endOf('day').toDate()),
+			};
+		case 'last90Days':
+			return {
+				start: new Date(
+					now.clone().subtract(89, 'days').startOf('day').toDate(),
+				),
+				end: new Date(now.endOf('day').toDate()),
+			};
+		case 'thisMonth':
+			return {
+				start: new Date(now.clone().startOf('month').toDate()),
+				end: new Date(now.clone().endOf('month').toDate()),
+			};
+		case 'thisWeek':
+			return {
+				start: new Date(now.clone().startOf('isoWeek').toDate()),
+				end: new Date(now.clone().endOf('isoWeek').toDate()),
+			};
+		case 'thisYear':
+			return {
+				start: new Date(now.clone().startOf('year').toDate()),
+				end: new Date(now.clone().endOf('year').toDate()),
+			};
+		case 'today':
+			return {
+				start: new Date(now.startOf('day').toDate()),
+				end: new Date(now.endOf('day').toDate()),
+			};
+		case 'yesterday':
+			const yesterday = now.clone().subtract(1, 'day');
+			return {
+				start: new Date(yesterday.startOf('day').toDate()),
+				end: new Date(yesterday.endOf('day').toDate()),
+			};
 
-
-
-
-
-
-
+		default:
+			return null;
+	}
+};
